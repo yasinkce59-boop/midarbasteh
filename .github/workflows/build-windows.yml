@@ -1,0 +1,70 @@
+name: Build Windows Installer
+
+# Runs automatically on every push to main, and can also be triggered
+# manually from the Actions tab ("Run workflow" button).
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch: {}
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller
+
+      - name: Pre-download OCR models (bundled for fully offline first run)
+        run: |
+          python download_models.py
+
+      - name: Pre-download object-detection model (for line/zone crossing alerts)
+        run: |
+          python download_yolo_model.py
+
+      - name: Build standalone executable (PyInstaller)
+        run: |
+          pyinstaller --noconfirm --onefile --windowed --name LPR-Camera-System gui_app.py
+
+      - name: Install Inno Setup
+        run: choco install innosetup -y
+
+      - name: Build Windows installer (Inno Setup)
+        run: |
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer.iss
+
+      - name: Upload standalone exe
+        uses: actions/upload-artifact@v4
+        with:
+          name: LPR-Camera-System-exe
+          path: dist/LPR-Camera-System.exe
+
+      - name: Upload OCR models (only needed if using the standalone exe without the installer)
+        uses: actions/upload-artifact@v4
+        with:
+          name: easyocr_models
+          path: easyocr_models/
+
+      - name: Upload object-detection model (only needed if using the standalone exe without the installer)
+        uses: actions/upload-artifact@v4
+        with:
+          name: yolo_model
+          path: yolo_model/
+
+      - name: Upload installer (Setup.exe, includes all models - fully offline)
+        uses: actions/upload-artifact@v4
+        with:
+          name: LPR-Setup-installer
+          path: Output/LPR-Setup.exe
