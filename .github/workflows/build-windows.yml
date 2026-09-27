@@ -1,7 +1,5 @@
 name: Build Windows Installer
 
-# Runs automatically on every push to main, and can also be triggered
-# manually from the Actions tab ("Run workflow" button).
 on:
   push:
     branches: [ "main" ]
@@ -34,16 +32,13 @@ jobs:
           pip install pyinstaller
 
       - name: Pre-download OCR models (bundled for fully offline first run)
-        run: |
-          python download_models.py
+        run: python download_models.py
 
       - name: Pre-download object-detection model (for line/zone crossing alerts)
-        run: |
-          python download_yolo_model.py
+        run: python download_yolo_model.py
 
       - name: Build standalone executable (PyInstaller)
-        run: |
-          pyinstaller --noconfirm --onefile --windowed --name LPR-Camera-System gui_app.py
+        run: pyinstaller --noconfirm --onefile --windowed --name LPR-Camera-System gui_app.py
 
       - name: Install Inno Setup
         run: choco install innosetup -y
@@ -52,39 +47,51 @@ jobs:
         run: |
           & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer.iss
 
+      # --- مراحل آپلود آرْتیفکت‌ها ---
       - name: Upload standalone exe
         uses: actions/upload-artifact@v4
         with:
           name: LPR-Camera-System-exe
           path: dist/LPR-Camera-System.exe
 
-      - name: Upload OCR models (only needed if using the standalone exe without the installer)
+      - name: Upload OCR models
         uses: actions/upload-artifact@v4
         with:
           name: easyocr_models
           path: easyocr_models/
 
-      - name: Upload object-detection model (only needed if using the standalone exe without the installer)
+      - name: Upload object-detection model
         uses: actions/upload-artifact@v4
         with:
           name: yolo_model
           path: yolo_model/
 
-      - name: Upload installer (Setup.exe, includes all models - fully offline)
+      - name: Upload installer
         uses: actions/upload-artifact@v4
         with:
           name: LPR-Setup-installer
-          path: Output/LPR-Setup.exe
+          path: Output/
 
-      # Only runs when the build was triggered by pushing a tag like "v1.0.0".
-      # Automatically creates (or updates) a GitHub Release and attaches the
-      # installer + standalone exe, so people can download them from the
-      # Releases page without opening the Actions run.
+      # --- مرحله دیباگ برای بررسی دقیق مسیر فایل‌ها قبل از ساخت ریلیز ---
+      - name: Debug - List generated files
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: pwsh
+        run: |
+          Write-Host "--- Contents of dist folder ---"
+          Get-ChildItem -Path dist -Recurse
+          Write-Host "--- Contents of Output folder ---"
+          Get-ChildItem -Path Output -Recurse
+
+      # --- ساخت ریلیز ---
       - name: Publish GitHub Release
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           files: |
-            Output/LPR-Setup.exe
             dist/LPR-Camera-System.exe
+            Output/*.exe
           generate_release_notes: true
+          draft: false
+          prerelease: false
