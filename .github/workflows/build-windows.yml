@@ -47,7 +47,6 @@ jobs:
         run: |
           & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer.iss
 
-      # --- مراحل آپلود آرْتیفکت‌ها ---
       - name: Upload standalone exe
         uses: actions/upload-artifact@v4
         with:
@@ -72,9 +71,8 @@ jobs:
           name: LPR-Setup-installer
           path: Output/
 
-      # --- مرحله دیباگ برای بررسی دقیق مسیر فایل‌ها قبل از ساخت ریلیز ---
+      # مرحله دیباگ برای بررسی مسیر فایل‌ها
       - name: Debug - List generated files
-        if: startsWith(github.ref, 'refs/tags/')
         shell: pwsh
         run: |
           Write-Host "--- Contents of dist folder ---"
@@ -82,16 +80,26 @@ jobs:
           Write-Host "--- Contents of Output folder ---"
           Get-ChildItem -Path Output -Recurse
 
-      # --- ساخت ریلیز ---
-      - name: Publish GitHub Release
-        if: startsWith(github.ref, 'refs/tags/')
+      # ساخت Release خودکار با هر push به main
+      - name: Publish GitHub Release (auto-update)
         uses: softprops/action-gh-release@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
+          tag_name: latest
+          name: "Latest Build"
+          body: |
+             این Release به صورت خودکار با هر push به برنچ main ساخته/آپدیت می‌شود.
+            
+            📦 فایل‌های موجود:
+            - `LPR-Camera-System.exe` → نسخه standalone (بدون اینستالر)
+            - `LPR-Setup.exe` → اینستالر کامل (شامل تمام مدل‌ها - آفلاین)
+            
+            📅 ساخته شده در: ${{ github.event.head_commit.timestamp }}
+             کامیت: ${{ github.sha }}
           files: |
             dist/LPR-Camera-System.exe
             Output/*.exe
-          generate_release_notes: true
           draft: false
-          prerelease: false
+          prerelease: true
+          target_commitish: main
